@@ -1,9 +1,11 @@
 const userService = require("../services/user")
+const jwtProvider = require("../config/jwtProvider")
 const bcrypt = require('bcrypt')
 const config = require('../config/config')
 const nodemailer = require('nodemailer')
 const randomstring = require('randomstring')
 const User = require("../models/user_model")
+require('dotenv').config();
 
 const sendResetPasswordMail = async(username, email, token)=>{
     try{
@@ -15,7 +17,11 @@ const sendResetPasswordMail = async(username, email, token)=>{
             auth:{
                 user:config.emailUser,
                 pass:config.emailPassword
+            },
+            tls: {
+                rejectUnauthorized: false
             }
+
         });
 
         const mailOptions = {
@@ -40,7 +46,8 @@ const sendResetPasswordMail = async(username, email, token)=>{
 const register = async(req,res)=>{
     try{
         const user = await userService.createUser(req.body);
-        return res.status(200).send({message:"User registered successfully."})
+        const jwt = jwtProvider.generateToken(user._id)
+        return res.status(200).send({message:"User registered successfully.",jwt})
     }
     catch(error){
         return res.status(500).send({error:error.message})
@@ -49,10 +56,10 @@ const register = async(req,res)=>{
 
 const login = async(req,res)=>{
     const {username,password} = req.body;
-    console.log(req.body)
+    // console.log(req.body)
     try{
         const user = await userService.getUserByUsername(username)
-        console.log(username)
+        console.log('User:', user);
         if(!user){
             return res.status(404).send({message: 'user not found with this username.'})
         }
@@ -62,8 +69,9 @@ const login = async(req,res)=>{
         if(!isPasswordValid){
             return res.status(401).send({message: 'Invalid Password...'})
         }
-
-        return res.status(200).send({message:'User login successfully.'})
+        
+        const jwt = jwtProvider.generateToken(user._id)
+        return res.status(200).send({message:'User login successfully.',jwt})
 
     }catch(error){
         return res.status(500).send({error:error.message})
@@ -71,44 +79,49 @@ const login = async(req,res)=>{
     }
 }
 
-const forgetPassword = async(req,res)=>{
-    try{
+const forgetPassword = async (req, res) => {
+    try {
         const email = req.body.email;
-        const userData = await User.findOne({email:email});
-
-        if(userData){
-            const randomString = randomstring.generate();
-            const data = await User.updateOne({email:email},{$set:{token:randomString}})
-            sendResetPasswordMail(userData.username,userData.email,randomString);
-            res.status(200).send({success:true,message:'Please check your mail and reset your password.'})
+        const userData = await User.findOne({ email: email });
+        
+        if (userData) {
+            const token = jwtProvider.generateToken(userData._id);
+            const data = await User.updateOne({ email: email }, { $set: { token: token } });
+            sendResetPasswordMail(userData.username, userData.email, token);
+            res.status(200).send({ success: true, message: 'Please check your mail and reset your password.' });
+        } else {
+            return res.status(200).send({ success: false, message: 'This email does not exist.' });
         }
-        else{
-            return res.status(200).send({success:true,message:'This email does not exists.'})
-        }
-
-    }catch(error){
-        return res.status(400).send({success:false,message:error.message})
+    } catch (error) {
+        console.error(error);
+        res.status(400).send({ success: false, message: error.message });
     }
-}
+};
 
-
-const resetPassword = async(req,res)=>{
-    try{
+const resetPassword = async (req, res) => {
+    try {
         const token = req.query.token;
-        const tokenData = await User.findOne({token:token});
-        if(tokenData){
+        const tokenData = await jwtProvider.getUserIdFromToken(token);
+        console.log('Token Data:', tokenData);
+
+        if (tokenData) {
             const password = req.body.password;
-            const newPassword = await bcrypt.hash(password,8);
-            const userData = await User.findByIdAndUpdate({_id:tokenData._id},{$set:{password:newPassword,token:''}},{new:true})
-            res.status(200).send({success:true,message:'User password has been reset.',data:userData})
+            const newPassword = await bcrypt.hash(password, 8);
+            console.log('New Password:', newPassword);
+
+            // Pass _id directly as the first argument
+            const userData = await User.findByIdAndUpdate(tokenData, { $set: { password: newPassword, token: '' } }, { new: true });
+            
+            res.status(200).send({ success: true, message: 'User password has been reset.', data: userData });
+        } else {
+            res.status(200).send({ success: false, message: 'This link has been expired.' });
         }
-        else{
-            res.status(200).send({success:true,message:'This link has been expired.'})
-        }
-    }catch(error){
-        res.status(400).send({success:false,message:error.message})
+    } catch (error) {
+        console.error(error);
+        res.status(400).send({ success: false, message: error.message });
     }
-}
+};
+
 
 const getAllUsers = async(req,res)=>{
     let users;

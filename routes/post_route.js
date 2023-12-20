@@ -1,6 +1,10 @@
 const express =  require('express')
 const router = express.Router();
 const postController = require('../controller/post')
+const { verifyToken } = require('../config/jwtMiddleware');
+const jwtProvider = require('../config/jwtProvider');
+
+router.use(verifyToken);
 
 router.get('/',postController.getAllPosts);
 router.post('/add',postController.addPost);

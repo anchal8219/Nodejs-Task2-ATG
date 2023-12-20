@@ -29,39 +29,7 @@ const addPost = async(req,res)=>{
     }
 }
 
-// const addPost = async(req,res,next)=>{
-//     const {title, description, image, user} = req.body;
-//     // console.log('User ID:', user);
-//     let existingUser;
-//     try{
-//         existingUser = await User.findById(user);
-//         // console.log('Existing User:', existingUser);
-//     }catch(error){
-//         return res.status(500).send({error:error.message})
-//     }
-//     if(!existingUser){
-//         return res.status(400).send({message: 'Unable to find user by this id.'})
-//     }
-//     const post = new Post({
-//         title,
-//         description,
-//         image,
-//         user
-//     });
-//     try{
-//         const session = await mongoose.startSession();
-//         session.startTransaction();
-//         await post.save({session});
-//         existingUser.posts.push(post);
-//         await existingUser.save({session});
-//         await session.commitTransaction();
-//         session.endSession();
-//     }
-//     catch(error){
-//         return res.status(500).send({error:error.message})
-//     }
-//     return res.status(200).send({post})
-// }
+
 
 const updatePost = async(req,res)=>{
     const {title, description} = req.body;
